@@ -40,12 +40,6 @@ class sold_item:
             col = (col_names[i] if i < len(col_names) else 'col-'+str(i))
             self.col_dict[col] = input_arr[i].strip()
         #
-        # updating variables
-        self.rep_id = self.col_dict['col-0'].split(' ')[0]
-        self.customer_id = self.col_dict['col-3']
-        self.date  = self.col_dict['col-4']
-        self.price = float(self.col_dict['col-11'])
-        self.cost  = float(self.col_dict['col-14'])        
     #
     def getCol(self,key):
         return(self.col_dict[key])
@@ -53,19 +47,12 @@ class sold_item:
 #
 # stores customer information and totals 
 class customer:
-    def __init__(self,customer_id,date,price,cost):
+    def __init__(self,customer_id,date,amount):
         self.id = customer_id
-        self.daily_sales = {date : price}
-        self.daily_costs = {date : cost}
+        self.daily_sales = {date : amount}
     #
-    def incrementSales(self,date,price,cost):
-        try:
-            self.daily_sales[date] += price
-            self.daily_costs[date] += cost
-        except KeyError:
-            self.daily_sales[date]  = price
-            self.daily_costs[date]  = cost
-
+    def increment_sales(self,date,amount):
+        self.daily_sales[date] += amount
 #
 #
 ################################################################################
@@ -90,17 +77,9 @@ def process_ec_order_upload(infile,sold_items_list):
     return
 #
 # this totals each customers sales
-def customer_totals(customer_dict,sold_items_list):
+def customer_totals:
     for item in sold_items_list:
-        try:
-            cust = customer_dict[item.customer_id]
-            cust.incrementSales(item.date,item.price,item.cost)
-        except KeyError:
-            cust = customer(item.customer_id,item.date,item.price,item.cost)
-            customer_dict[item.customer_id] = cust
-    #
-    for cid in customer_dict:
-        print(customer_dict[cid].id,customer_dict[cid].daily_sales)
+        print(item.getCol('col-7'))
 
 #
 #
@@ -110,12 +89,11 @@ def customer_totals(customer_dict,sold_items_list):
 #
 #
 # initializations
-ec_infile = '../EC-Order-Upload.txt'
+ec_infile = 'EC-Order-Upload.txt'
 sold_items_list = []
-customer_dict = {}
 #
 # reading EC upload file
 process_ec_order_upload(ec_infile,sold_items_list)
 #
-# totaling customer sales
-customer_totals(customer_dict,sold_items_list)
+#
+print(sold_items_list[50].getCol('col-0'))
