@@ -41,7 +41,7 @@ class sold_item:
             self.col_dict[col] = input_arr[i].strip()
         #
         # updating variables
-        self.rep_id = self.col_dict['col-0'].split(' ')[0]
+        self.rep_id = self.col_dict['col-0'].split(' ')[0]  #these will be replaced with useful col names
         self.customer_id = self.col_dict['col-3']
         self.date  = self.col_dict['col-4']
         self.price = float(self.col_dict['col-11'])
@@ -72,8 +72,11 @@ class customer:
 ############################ Function Definitions ##############################
 ################################################################################
 #
+# ### ### EC Upload File ### ### #
+#
+#
 # this processes the ec upload file and populates the sold_items_list
-def process_ec_order_upload(infile,sold_items_list):
+def read_ec_order_upload(infile,sold_items_list):
     # reading infile
     upload_file = open(infile,'r')
     content = upload_file.read()
@@ -98,10 +101,20 @@ def customer_totals(customer_dict,sold_items_list):
         except KeyError:
             cust = customer(item.customer_id,item.date,item.price,item.cost)
             customer_dict[item.customer_id] = cust
+#
+# this just acts as a driver function to handle all processing of EC upload file
+def process_ec_order_upload(ec_infile,sold_items_list,customer_dict):
     #
-    for cid in customer_dict:
-        print(customer_dict[cid].id,customer_dict[cid].daily_sales)
-
+    # reading EC upload file
+    read_ec_order_upload(ec_infile,sold_items_list)
+    #
+    # totaling customer sales and cost
+    customer_totals(customer_dict,sold_items_list)
+#
+#
+# ### ### ar_ovchs file ### ### #
+#
+#
 #
 #
 ################################################################################
@@ -114,8 +127,5 @@ ec_infile = '../EC-Order-Upload.txt'
 sold_items_list = []
 customer_dict = {}
 #
-# reading EC upload file
+# processing the EC upload file
 process_ec_order_upload(ec_infile,sold_items_list)
-#
-# totaling customer sales
-customer_totals(customer_dict,sold_items_list)
