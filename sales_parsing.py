@@ -49,14 +49,28 @@ class sold_item:
     #
     def getCol(self,key):
         return(self.col_dict[key])
+#
+# this stores the line data from the ar_ovchs report
+class ar_line:
+    def __init__(self,input_str,col_sizes):
+        # initializations
+        self.rep_id = 0
+        self.customer_id = 0
+        self.date = ''
+        self.amount = 0.00
+        self.col_dict = {}
+        # processing input string
+        col_names = []
+
 
 #
 # stores customer information and totals 
 class customer:
-    def __init__(self,customer_id,date,price,cost):
+    def __init__(self,customer_id):
         self.id = customer_id
-        self.daily_sales = {date : price}
-        self.daily_costs = {date : cost}
+        self.daily_sales = {}
+        self.daily_costs = {}
+        self.ar_total = {}
     #
     def incrementSales(self,date,price,cost):
         try:
@@ -72,7 +86,7 @@ class customer:
 ############################ Function Definitions ##############################
 ################################################################################
 #
-# ### ### EC Upload File ### ### #
+# ### ### EC Upload File Processing ### ### #
 #
 #
 # this processes the ec upload file and populates the sold_items_list
@@ -93,28 +107,58 @@ def read_ec_order_upload(infile,sold_items_list):
     return
 #
 # this totals each customers sales
-def customer_totals(customer_dict,sold_items_list):
+def customer_totals(customer_sales_dict,sold_items_list):
     for item in sold_items_list:
         try:
-            cust = customer_dict[item.customer_id]
+            cust = customer_sales_dict[item.customer_id]
             cust.incrementSales(item.date,item.price,item.cost)
         except KeyError:
-            cust = customer(item.customer_id,item.date,item.price,item.cost)
-            customer_dict[item.customer_id] = cust
+            cust = customer(item.customer_id)
+            cust.incrementSales(item.date,item.price,item.cost)
+            customer_sales_dict[item.customer_id] = cust
 #
 # this just acts as a driver function to handle all processing of EC upload file
-def process_ec_order_upload(ec_infile,sold_items_list,customer_dict):
+def process_ec_order_upload(ec_infile,sold_items_list,customer_sales_dict):
     #
     # reading EC upload file
     read_ec_order_upload(ec_infile,sold_items_list)
     #
     # totaling customer sales and cost
-    customer_totals(customer_dict,sold_items_list)
+    customer_totals(customer_sales_dict,sold_items_list)
 #
 #
-# ### ### ar_ovchs file ### ### #
+# ### ### ar_ovchs File Processing ### ### #
 #
-#
+# this function reads the ar_ovchs file 
+def read_ar_ovchs(ar_infile,customer_ar_dict):
+    # reading infile
+    ar_file = open(ar_infile,'r')
+    content = ar_file.read()
+    ar_file.close()
+    #
+    # splitting lines 
+    content_arr = re.split(r'\n',content)
+    content_arr = list(filter(None,content_arr))
+    #
+    # filtering uneeded lines
+    i = 0
+    while i < len(content_arr):
+        line = content_arr[i]
+        #
+        if not (re.match(r'\s{1,6}[A-Z0-9]+\s',line)):
+            del content_arr[i]
+        else:
+            i += 1
+    print(len(content_arr));
+    #
+    # determining column sizes
+    
+    #
+    # I'll eventually need a regex like to to process everything re.match(r'(.{15})(.{15})(.{15})',s)
+    # where the 15s will be a variable and s is the line to process
+    # this part might be handled by the class object
+    #
+    
 #
 #
 ################################################################################
@@ -124,8 +168,15 @@ def process_ec_order_upload(ec_infile,sold_items_list,customer_dict):
 #
 # initializations
 ec_infile = '../EC-Order-Upload.txt'
+ar_infile = '../ar_ovchs.txt'
 sold_items_list = []
-customer_dict = {}
+customer_sales_dict = {}
+customer_ar_dict = {}
 #
 # processing the EC upload file
-process_ec_order_upload(ec_infile,sold_items_list)
+process_ec_order_upload(ec_infile,sold_items_list,customer_sales_dict)
+#
+# processing the ar_ovchs file
+read_ar_ovchs(ar_infile,customer_ar_dict)
+
+
