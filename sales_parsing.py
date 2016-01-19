@@ -313,7 +313,6 @@ def read_s_wkcomm(com_infile,com_line_list):
     del line_arr[-1]
     #
     column_starts = get_column_starts(line_arr,24,len(line_arr[0])+5)
-    print (column_starts)
     #
     for line in line_arr:
         cl = com_line(line,column_starts)
@@ -331,11 +330,6 @@ def rep_credit_totals(com_line_list,rep_totals_dict):
             rep = sales_rep(cl.rep_id)
             rep.incrementCredits(cl.date,cl.credits)
             rep_totals_dict[cl.rep_id] = rep
-    #
-    keys = list(rep_totals_dict.keys())
-    keys.sort()
-    for key in keys:
-        print(rep_totals_dict[key].id,rep_totals_dict[key].credit_total,rep_totals_dict[key].ar_total)
 #
 # this just acts as a driver function to handle all processing of s_wkcomm file
 def process_s_wkcomm_file(com_infile,com_line_list,rep_totals_dict):
@@ -373,6 +367,21 @@ process_ar_ovchs_file(ec_infile,customer_ar_dict,rep_totals_dict)
 #
 # processing the s_wkcomm file
 process_s_wkcomm_file(com_infile,com_line_list,rep_totals_dict)
+
+#
+# outputting sales data for testing
+keys = list(customer_sales_dict.keys())
+keys.sort()
+for key in keys:
+    print('cid:',key,'sales:',customer_sales_dict[key].daily_sales)
+print('')
+print('')
+#
+# outputting rep data for testing
+keys = list(rep_totals_dict.keys())
+keys.sort()
+for key in keys:
+    print('id:',rep_totals_dict[key].id,'credit dict:',rep_totals_dict[key].credit_total,'ar dict:',rep_totals_dict[key].ar_total)
 
 
 
