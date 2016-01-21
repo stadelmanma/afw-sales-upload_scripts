@@ -44,9 +44,9 @@ class sold_item:
         # updating variables
         self.rep_id = self.col_dict['rep'].split(' ')[0]  #these will be replaced with useful col names
         self.customer_id = self.col_dict['customer_id']
-        self.date  = self.col_dict['date']
-        self.price = float(self.col_dict['price'])
-        self.cost  = float(self.col_dict['cost_per3']) * float(self.col_dict['quantity'])     
+        self.date  = self.col_dict['stamp_date']
+        self.price = float(self.col_dict['extended'])
+        self.cost  = float(self.col_dict['sls_cost-wdeal']) * float(self.col_dict['quantity'])     
     #
     def getCol(self,key):
         return(self.col_dict[key])
@@ -89,7 +89,10 @@ class com_line:
         # initializations
         self.rep_id = 0
         self.date = ''
+        self.sales = 0.00
         self.credits = 0.00
+        self.cost = 0.00
+        self.profit = 0.00
         self.col_dict = {}
         #
         # processing input string
@@ -103,10 +106,23 @@ class com_line:
         #
         # updating variables
         self.rep_id = self.col_dict['rep_id']
+        #
         # checking for appended negative sign
+        if (re.search('-$',self.col_dict['sales'])):
+            self.col_dict['sales'] = '-'+re.sub('-$','',self.col_dict['sales'])
+        self.sales = float(self.col_dict['sales'])
+        #
         if (re.search('-$',self.col_dict['credits'])):
             self.col_dict['credits'] = '-'+re.sub('-$','',self.col_dict['credits'])
         self.credits = float(self.col_dict['credits'])
+        #
+        if (re.search('-$',self.col_dict['cost'])):
+            self.col_dict['cost'] = '-'+re.sub('-$','',self.col_dict['cost'])
+        self.cost = float(self.col_dict['cost'])
+        #
+        if (re.search('-$',self.col_dict['profit'])):
+            self.col_dict['profit'] = '-'+re.sub('-$','',self.col_dict['profit'])
+        self.cost = float(self.col_dict['profit'])
     #
     def getCol(self,key):
         return(self.col_dict[key])
@@ -132,31 +148,67 @@ class sales_rep:
     #
     def __init__(self,rep_id):
         self.id = rep_id
-        self.daily_sales  = {}
-        self.daily_costs  = {}
-        self.date = ''
-        self.credit_total = {}
-        self.ar_total = {}
+        self.total_sales  = {}
+        self.total_cost  = {}
+        self.total_credits = {}
+        self.total_profits = {}
+        self.total_ar = {}
+        self.total_ar_sales = {}
     #
     def incrementSales(self,date,price,cost):
         try:
-            self.daily_sales[date] += price
-            self.daily_costs[date] += cost
+            self.total_sales[date] += price
         except KeyError:
-            self.daily_sales[date]  = price
-            self.daily_costs[date]  = cost
-    #
-    def incrementAr(self,date,amount):
-        try:
-            self.ar_total[date] += amount
-        except KeyError:
-            self.ar_total[date]  = amount
+            self.check_dates(date)
+            self.total_sales[date]  = price
     #
     def incrementCredits(self,date,amount):
         try:
-            self.credit_total[date] += amount
+            self.total_credits[date] += amount
         except KeyError:
-            self.credit_total[date]  = amount
+            self.check_dates(date)
+            self.total_credits[date]  = amount
+    #
+    def incrementCosts(self,date,amount):
+        try:
+            self.total_credits[date] += amount
+        except KeyError:
+            self.check_dates(date)
+            self.total_credits[date]  = amount
+    #
+    
+    def incrementProfits(self,date,amount):
+        try:
+            self.total_profits[date] += amount
+        except KeyError:
+            self.check_dates(date)
+            self.total_profits[date]  = amount
+    #
+    def incrementArSales(self,date,amount):
+        try:
+            self.total_ar_sales[date] += amount
+        except KeyError:
+            self.check_dates(date)
+            self.total_ar_sales[date]  = amount
+    #
+    def incrementAr(self,date,amount):
+        try:
+            self.total_ar[date] += amount
+        except KeyError:
+            self.check_dates(date)
+            self.total_ar[date]  = amount
+    #
+    def check_dates(self,date):
+        if (not self.total_sales.__contains__(date)):
+             self.total_sales[date] = 0.0
+        if (not self.total_cost.__contains__(date)):
+             self.total_cost[date] = 0.0
+        if (not self.total_ar_sales.__contains__(date)):
+             self.total_ar_sales[date] = 0.0
+        if (not self.total_ar.__contains__(date)):
+             self.total_ar[date] = 0.0
+        if (not self.total_credits.__contains__(date)):
+             self.total_credits[date] = 0.0
 #
 #
 ################################################################################
@@ -272,11 +324,10 @@ def rep_ar_totals(customer_ar_dict,rep_totals_dict):
         cust = customer_ar_dict[cust]
         try:
             rep = rep_totals_dict[cust.rep_id]
-            rep.incrementAr(cust.date,cust.amount)
         except KeyError:
             rep = sales_rep(cust.rep_id)
-            rep.incrementAr(cust.date,cust.amount)
             rep_totals_dict[cust.rep_id] = rep
+        rep.incrementAr(cust.date,cust.amount)
 #
 # this just acts as a driver function to handle all processing of ar_ovchs file
 def process_ar_ovchs_file(ec_infile,customer_ar_dict,rep_totals_dict):
@@ -288,7 +339,7 @@ def process_ar_ovchs_file(ec_infile,customer_ar_dict,rep_totals_dict):
     rep_ar_totals(customer_ar_dict,rep_totals_dict)
 #
 #
-# ### ### ar_ovchs File Processing ### ### #
+# ### ### s_wkcomm File Processing ### ### #
 #
 #
 # this function reads the s_wkcomm file
@@ -321,7 +372,7 @@ def read_s_wkcomm(com_infile,com_line_list):
         com_line_list.append(cl)
 #
 # this function adds the credits line to the rep object
-def rep_credit_totals(com_line_list,rep_totals_dict):
+def rep_comm_totals(com_line_list,rep_totals_dict):
     #
     for cl in com_line_list:
         try:
@@ -330,8 +381,10 @@ def rep_credit_totals(com_line_list,rep_totals_dict):
             rep = sales_rep(cl.rep_id)
             rep_totals_dict[cl.rep_id] = rep
         #
+        rep.incrementSales(cl.date,cl.sales)
         rep.incrementCredits(cl.date,cl.credits)
-        rep.date = cl.date
+        rep.incrementCosts(cl.date,cl.costs)
+        rep.incrementProfits(cl.date,cl.profit)
 #
 # this just acts as a driver function to handle all processing of s_wkcomm file
 def process_s_wkcomm_file(com_infile,com_line_list,rep_totals_dict):
@@ -340,42 +393,38 @@ def process_s_wkcomm_file(com_infile,com_line_list,rep_totals_dict):
     read_s_wkcomm(com_infile,com_line_list)
     #
     # totaling customer ar into rep
-    rep_credit_totals(com_line_list,rep_totals_dict)
+    rep_comm_totals(com_line_list,rep_totals_dict)
 #
 #
 # ### ### SQL generation ### ### #
 #
 #
 # this function pulls the meaty bits from the objects stored in the customer and rep classes
-def make_cust_sql_dicts(customer_sales_dict):
+def make_sales_sql_dicts(sold_items_list):
     #
     # defining columns
     #
-    cust_dict_list = []
+    sales_dict_list = []
     #
     # stepping through customers
-    for key in customer_sales_dict.keys():
-        cust = customer_sales_dict[key]
-        # stepping through dates
-        for date in cust.daily_sales:
-            cust_dict = {
-                'customer_id'   : cust.id,
-                'date'          : date,
-                'price'         : cust.daily_sales[date],
-                'cost'          : cust.daily_costs[date],
-                'entering_user' : 'python-upload',
-                'entry_status'  : 'submitted',
-                'admin_fix'     : '',
-                'admin_fix_timestamp' : '',
-            }
-            #
-            cust_dict_list.append(cust_dict) 
-    return(cust_dict_list)
+    for item in sold_items_list:
+        item_dict = {
+            'customer_id'   : item.customer_id,
+            'date'          : item.date,
+            'stamp_op'      : item.getCol('stamp_op'),
+            'buyer'         : item.getCol('buyer'),
+            'amount'        : item.price,
+            'entering_user' : 'python-upload',
+            'entry_status'  : 'submitted',
+            'admin_fix'     : '',
+            'admin_fix_timestamp' : '',
+        }
+        #
+        sales_dict_list.append(item_dict) 
+    return(sales_dict_list)
 #
 #   
 def make_rep_sql_dicts(rep_totals_dict):
-    #
-    # defining columns
     #
     rep_dict_list = []   
     #
@@ -384,8 +433,6 @@ def make_rep_sql_dicts(rep_totals_dict):
         rep = rep_totals_dict[key]
         # stepping through dates
         keys = list(rep.ar_total.keys())
-        keys += list(rep.credit_total.keys())
-        set(keys)
         for date in keys:
             try:
                 ar = rep.ar_total[date]
@@ -462,26 +509,11 @@ process_ar_ovchs_file(ec_infile,customer_ar_dict,rep_totals_dict)
 #
 # processing the s_wkcomm file
 process_s_wkcomm_file(com_infile,com_line_list,rep_totals_dict)
-
-#
-# outputting sales data for testing
-keys = list(customer_sales_dict.keys())
-keys.sort()
-for key in keys:
-    print('cid:',key,'sales:',customer_sales_dict[key].daily_sales)
-print('')
-print('')
-#
-# outputting rep data for testing
-keys = list(rep_totals_dict.keys())
-keys.sort()
-for key in keys:
-    print('id:',rep_totals_dict[key].id,'credit dict:',rep_totals_dict[key].credit_total,'ar dict:',rep_totals_dict[key].ar_total)
 #
 # creating sql upload statments
-cust_dict_list = make_cust_sql_dicts(customer_sales_dict)
+sales_dict_list = make_sales_sql_dicts(sold_items_list)
 rep_dict_list  = make_rep_sql_dicts(rep_totals_dict)
-cust_sql  = create_sql('sales_by_customer',cust_dict_list)
-print(cust_sql)
+sales_sql  = create_sql('sales_by_customer',sales_dict_list)
+print(sales_sql)
 
 
