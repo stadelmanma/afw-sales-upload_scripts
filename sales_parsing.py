@@ -35,18 +35,18 @@ class sold_item:
         self.cost = 0.00
         self.col_dict = {}
         # processing input string
-        col_names = []
+        col_names = ['rep','keyed_entry','customer_name','customer_id','date','date_delivered','item_number','desc','packsize','warehouse_code','PO_number','price','price_per','cost_per1','cost_per2','quantity','weight','cost_per3','misc']
         input_arr = re.split(r'\t',input_str)
         for i in range(len(input_arr)):
             col = (col_names[i] if i < len(col_names) else 'col-'+str(i))
             self.col_dict[col] = input_arr[i].strip()
         #
         # updating variables
-        self.rep_id = self.col_dict['col-0'].split(' ')[0]  #these will be replaced with useful col names
-        self.customer_id = self.col_dict['col-3']
-        self.date  = self.col_dict['col-4']
-        self.price = float(self.col_dict['col-11'])
-        self.cost  = float(self.col_dict['col-14'])        
+        self.rep_id = self.col_dict['rep'].split(' ')[0]  #these will be replaced with useful col names
+        self.customer_id = self.col_dict['customer_id']
+        self.date  = self.col_dict['date']
+        self.price = float(self.col_dict['price'])
+        self.cost  = float(self.col_dict['cost_per3']) * float(self.col_dict['quantity'])     
     #
     def getCol(self,key):
         return(self.col_dict[key])
@@ -134,6 +134,7 @@ class sales_rep:
         self.id = rep_id
         self.daily_sales  = {}
         self.daily_costs  = {}
+        self.date = ''
         self.credit_total = {}
         self.ar_total = {}
     #
@@ -325,11 +326,12 @@ def rep_credit_totals(com_line_list,rep_totals_dict):
     for cl in com_line_list:
         try:
             rep = rep_totals_dict[cl.rep_id]
-            rep.incrementCredits(cl.date,cl.credits)
         except KeyError:
             rep = sales_rep(cl.rep_id)
-            rep.incrementCredits(cl.date,cl.credits)
             rep_totals_dict[cl.rep_id] = rep
+        #
+        rep.incrementCredits(cl.date,cl.credits)
+        rep.date = cl.date
 #
 # this just acts as a driver function to handle all processing of s_wkcomm file
 def process_s_wkcomm_file(com_infile,com_line_list,rep_totals_dict):
@@ -339,6 +341,75 @@ def process_s_wkcomm_file(com_infile,com_line_list,rep_totals_dict):
     #
     # totaling customer ar into rep
     rep_credit_totals(com_line_list,rep_totals_dict)
+#
+#
+# ### ### SQL generation ### ### #
+#
+#
+# this function pulls the meaty bits from the objects stored in the customer and rep classes
+def make_cust_sql_dicts(customer_sales_dict):
+    #
+    # defining columns
+    #
+    cust_dict_list = []
+    #
+    # stepping through customers
+    for key in customer_sales_dict.keys():
+        cust = customer_sales_dict[key]
+        # stepping through dates
+        for date in cust.daily_sales:
+            cust_dict = {
+                'customer_id'   : cust.id,
+                'date'          : date,
+                'price'         : cust.daily_sales[date],
+                'cost'          : cust.daily_costs[date],
+                'entering_user' : 'python-upload',
+                'entry_status'  : 'submitted',
+                'admin_fix'     : '',
+                'admin_fix_timestamp' : '',
+            }
+            #
+            cust_dict_list.append(cust_dict) 
+    return(cust_dict_list)
+#
+#   
+def make_rep_sql_dicts(rep_totals_dict):
+    #
+    # defining columns
+    #
+    rep_dict_list = []   
+    #
+    # stepping through reps
+    for key in rep_totals_dict.keys():
+        rep = rep_totals_dict[key]
+        # stepping through dates
+        keys = list(rep.ar_total.keys())
+        keys += list(rep.credit_total.keys())
+        set(keys)
+        for date in keys:
+            try:
+                ar = rep.ar_total[date]
+            except KeyError:
+                ar = 0.0
+            try:
+                credits = rep.credit_total[date]
+            except KeyError:
+                credits = 0.0
+            #
+            rep_dict = {
+                'rep_id'        : rep.id,
+                'date'          : date,
+                'total_ar'      : ar,
+                'total_credits' : credits,
+                'entering_user' : 'python-upload',
+                'entry_status'  : 'submitted',
+                'admin_fix'     : '',
+                'admin_fix_timestamp' : '',
+            }
+            #
+            rep_dict_list.append(rep_dict)  
+    return(rep_dict_list)
+
 #
 #
 ################################################################################
@@ -382,6 +453,9 @@ keys = list(rep_totals_dict.keys())
 keys.sort()
 for key in keys:
     print('id:',rep_totals_dict[key].id,'credit dict:',rep_totals_dict[key].credit_total,'ar dict:',rep_totals_dict[key].ar_total)
-
+#
+# creating sql upload statments
+cust_dict_list = make_cust_sql_dicts(customer_sales_dict)
+rep_dict_list  = make_rep_sql_dicts(rep_totals_dict)
 
 
