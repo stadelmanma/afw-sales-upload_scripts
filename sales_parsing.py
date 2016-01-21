@@ -35,7 +35,7 @@ class sold_item:
         self.cost = 0.00
         self.col_dict = {}
         # processing input string
-        col_names = ['rep','keyed_entry','customer_name','customer_id','date','date_delivered','item_number','desc','packsize','warehouse_code','PO_number','price','price_per','cost_per1','cost_per2','quantity','weight','cost_per3','misc']
+        col_names = ['rep','stamp_op','shipname','customer_id','stamp_date','ship_date','item_number','desc','unit','buyer','PO_number','extended','price','sls_cost-wdeal','lot_cost+freight-wdeal','quantity','weight','inv_cost-wdeal','other']
         input_arr = re.split(r'\t',input_str)
         for i in range(len(input_arr)):
             col = (col_names[i] if i < len(col_names) else 'col-'+str(i))
@@ -409,7 +409,31 @@ def make_rep_sql_dicts(rep_totals_dict):
             #
             rep_dict_list.append(rep_dict)  
     return(rep_dict_list)
-
+#
+# this creates a sql statement from a dctionary input using the keys as colunns
+def create_sql(table,data):
+    #
+    # initializaing variables
+    sql = ''
+    stride = 50 # how many insert statements to pack together
+    keyset = list(data[0].keys())
+    for i in range(len(data)):
+        dic = data[i]
+        # making insert statement
+        if (i%stride == 0):
+            sql += 'INSERT INTO `'+table+'` '
+            cols = ['`'+col+'`' for col in keyset]
+            cols = ','.join(cols)
+            sql += '('+cols+') VALUES \n'
+        else:
+            sql += ',\n'
+        # 
+        vals = ["'"+str(dic[key])+"'" for key in keyset]
+        vals = ','.join(vals)
+        sql += '('+vals+')'
+        sql += (';\n' if ((i+1)%stride == 0 and (i+1 < len(data))) else '')
+    sql += ';'
+    return(sql)        
 #
 #
 ################################################################################
@@ -457,5 +481,7 @@ for key in keys:
 # creating sql upload statments
 cust_dict_list = make_cust_sql_dicts(customer_sales_dict)
 rep_dict_list  = make_rep_sql_dicts(rep_totals_dict)
+cust_sql  = create_sql('sales_by_customer',cust_dict_list)
+print(cust_sql)
 
 
