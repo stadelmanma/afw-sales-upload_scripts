@@ -45,8 +45,34 @@ class sold_item:
         self.rep_id = self.col_dict['rep'].split(' ')[0]  #these will be replaced with useful col names
         self.customer_id = self.col_dict['customer_id']
         self.date  = self.col_dict['stamp_date']
-        self.price = float(self.col_dict['extended'])
-        self.cost  = float(self.col_dict['sls_cost-wdeal']) * float(self.col_dict['quantity'])     
+        self.price = make_float(self.col_dict['extended'])
+        self.cost  = make_float(self.col_dict['sls_cost-wdeal']) * make_float(self.col_dict['quantity'])     
+    #
+    def getCol(self,key):
+        return(self.col_dict[key])
+#
+# this stores the line data from the ar_sales report
+class sales_line:
+    #
+    def __init__(self,input_str,col_starts):
+        # initializations
+        self.rep_id = 0
+        self.date = ''
+        self.amount = 0.00
+        self.col_dict = {}
+        #
+        # processing input string
+        col_names = ['rep_id','junk','avg_days_pay','total','current','bucket_1','bucket_2','bucket_3','bucket_4']
+        for i in range(len(col_starts)-1):
+            col = (col_names[i] if i < len(col_names) else 'col-'+str(i))
+            self.col_dict[col] = input_str[col_starts[i]:col_starts[i+1]].strip()
+        i += 1
+        col = (col_names[i] if i < len(col_names) else 'col-'+str(i))
+        self.col_dict[col] = input_str[col_starts[-1]:].strip()
+        #
+        # updating variables
+        self.rep_id = self.col_dict['rep_id']
+        self.amount = make_float(self.col_dict['total'])
     #
     def getCol(self,key):
         return(self.col_dict[key])
@@ -75,9 +101,7 @@ class ar_line:
         self.rep_id = self.col_dict['rep_id']
         self.customer_id = self.col_dict['customer_id']
         # checking for appended negative sign
-        if (re.search('-$',self.col_dict['over'])):
-            self.col_dict['over'] = '-'+re.sub('-$','',self.col_dict['over'])
-        self.amount = float(self.col_dict['over'])
+        self.amount = make_float(self.col_dict['over'])
     #
     def getCol(self,key):
         return(self.col_dict[key])
@@ -107,22 +131,10 @@ class com_line:
         # updating variables
         self.rep_id = self.col_dict['rep_id']
         #
-        # checking for appended negative sign
-        if (re.search('-$',self.col_dict['sales'])):
-            self.col_dict['sales'] = '-'+re.sub('-$','',self.col_dict['sales'])
-        self.sales = float(self.col_dict['sales'])
-        #
-        if (re.search('-$',self.col_dict['credits'])):
-            self.col_dict['credits'] = '-'+re.sub('-$','',self.col_dict['credits'])
-        self.credits = float(self.col_dict['credits'])
-        #
-        if (re.search('-$',self.col_dict['cost'])):
-            self.col_dict['cost'] = '-'+re.sub('-$','',self.col_dict['cost'])
-        self.cost = float(self.col_dict['cost'])
-        #
-        if (re.search('-$',self.col_dict['profit'])):
-            self.col_dict['profit'] = '-'+re.sub('-$','',self.col_dict['profit'])
-        self.cost = float(self.col_dict['profit'])
+        self.sales = make_float(self.col_dict['sales'])
+        self.credits = make_float(self.col_dict['credits'])
+        self.cost = make_float(self.col_dict['cost'])
+        self.profit = make_float(self.col_dict['profit'])
     #
     def getCol(self,key):
         return(self.col_dict[key])
@@ -155,12 +167,12 @@ class sales_rep:
         self.total_ar = {}
         self.total_ar_sales = {}
     #
-    def incrementSales(self,date,price,cost):
+    def incrementSales(self,date,amount):
         try:
-            self.total_sales[date] += price
+            self.total_sales[date] += amount
         except KeyError:
             self.check_dates(date)
-            self.total_sales[date]  = price
+            self.total_sales[date]  = amount
     #
     def incrementCredits(self,date,amount):
         try:
@@ -254,6 +266,37 @@ def process_ec_order_upload(ec_infile,sold_items_list,customer_sales_dict):
     customer_totals(customer_sales_dict,sold_items_list)
 #
 #
+# ### ### ar_sales File Processing ### ### #
+#
+#
+# this function reads the ar_sales file
+def read_ar_sales(sales_infile,ar_sales_list):
+    # reading infile
+    sales_file = open(sales_infile,'r')
+    content = sales_file.read()
+    sales_file.close()
+    #
+    # splitting lines 
+    content_arr = re.split(r'\n',content)
+    content_arr = list(filter(None,content_arr))
+    #
+    # getting date from first header
+    date = re.split('\s{2,}',content_arr[1])[2]
+    date = date.strip()
+    #
+    # filtering uneeded lines
+    line_pat = re.compile(r'\s{1,4}[0-9]+\s+TOTAL\s+')
+    content_arr = list(filter(line_pat.match,content_arr))
+    #
+    # determining column starts
+    column_starts = get_column_starts(content_arr,4)
+    #
+    # creating sales_line objects
+    for line in content_arr:
+        sale = sales_line(line,column_starts)
+        sale.date = date
+        ar_sales_list.append(sale)
+#
 # ### ### ar_ovchs File Processing ### ### #
 #
 #
@@ -273,49 +316,17 @@ def read_ar_ovchs(ar_infile,customer_ar_dict):
     date = date.strip()
     #
     # filtering uneeded lines
-    i = 0
-    max_len = 0
-    while i < len(content_arr):
-        line = content_arr[i]
-        #
-        if not (re.match(r'\s{1,6}[A-Z0-9]+\s',line)):
-            del content_arr[i]
-        else:
-            max_len = (len(line) if (len(line) > max_len) else max_len)
-            i += 1
+    line_pat = re.compile(r'\s{1,6}[A-Z0-9]+\s')
+    content_arr = list(filter(line_pat.match,content_arr))
     #
     # determining column sizes (semi-brute force method)
-    column_starts = get_column_starts(content_arr,6,max_len)
+    column_starts = get_column_starts(content_arr,6)
     #
     # creating ar_line objects
     for line in content_arr:
         ar = ar_line(line,column_starts)
         ar.date = date
         customer_ar_dict[ar.customer_id] = ar
-#
-# this function determines the column starts of fixed width reports
-def get_column_starts(content_arr,start_index,max_len):
-    # initializing variables
-    column_starts = [0]
-    s = start_index
-    while True:
-        # inital testing 
-        for line in content_arr:
-            if (not re.match('\s',line[s-1:s])):
-                s += 1
-                break
-        # advancing s until failure
-        if (line == content_arr[-1]):
-            s += 1
-            for line in content_arr:
-                if (not re.match('\s',line[s-1:s])):
-                    column_starts.append(s-1)
-                    break
-        #
-        if (s > max_len):
-            break
-    #
-    return(column_starts)
 #
 # this function totals up AR by rep
 def rep_ar_totals(customer_ar_dict,rep_totals_dict):
@@ -364,7 +375,7 @@ def read_s_wkcomm(com_infile,com_line_list):
     del line_arr[-1]
     del line_arr[-1]
     #
-    column_starts = get_column_starts(line_arr,24,len(line_arr[0])+5)
+    column_starts = get_column_starts(line_arr,24)
     #
     for line in line_arr:
         cl = com_line(line,column_starts)
@@ -383,7 +394,7 @@ def rep_comm_totals(com_line_list,rep_totals_dict):
         #
         rep.incrementSales(cl.date,cl.sales)
         rep.incrementCredits(cl.date,cl.credits)
-        rep.incrementCosts(cl.date,cl.costs)
+        rep.incrementCosts(cl.date,cl.cost)
         rep.incrementProfits(cl.date,cl.profit)
 #
 # this just acts as a driver function to handle all processing of s_wkcomm file
@@ -394,6 +405,49 @@ def process_s_wkcomm_file(com_infile,com_line_list,rep_totals_dict):
     #
     # totaling customer ar into rep
     rep_comm_totals(com_line_list,rep_totals_dict)
+#
+#
+# ### ### general use functions ### ### #
+#
+#
+# this function returns a float value from numeric values in reports
+def make_float(num_str):
+    #
+    # removing commans
+    num_str = re.sub(',','',num_str)
+    #
+    # checking for appended negative sign
+    if (re.search('-$',num_str)):
+        num_str = '-'+re.sub('-$','',num_str)
+    #
+    num = float(num_str)
+    return(num)
+#
+# this function determines the column starts of fixed width reports
+def get_column_starts(content_arr,start_index):
+    # initializing variables
+    column_starts = [0]
+    s = start_index
+    max_len = len(content_arr[0])
+    while True:
+        # inital testing 
+        for line in content_arr:
+            max_len = (len(line) if (len(line) > max_len) else max_len)
+            if (not re.match('\s',line[s-1:s])):
+                s += 1
+                break
+        # advancing s until failure
+        if (line == content_arr[-1]):
+            s += 1
+            for line in content_arr:
+                if (not re.match('\s',line[s-1:s])):
+                    column_starts.append(s-1)
+                    break
+        #
+        if (s > max_len):
+            break
+    #
+    return(column_starts)
 #
 #
 # ### ### SQL generation ### ### #
@@ -490,10 +544,12 @@ def create_sql(table,data):
 #
 # initializations
 ec_infile = '../EC-Order-Upload.txt'
+sales_infile = '../ar_sales.txt'
 ar_infile = '../ar_ovchs.txt'
 com_infile = '../s_wkcomm.txt'
 sold_items_list = []
 com_line_list = []
+ar_sales_list = []
 customer_sales_dict = {}
 customer_ar_dict = {}
 rep_totals_dict = {}
@@ -504,6 +560,9 @@ rep_totals_dict = {}
 # processing the EC upload file
 process_ec_order_upload(ec_infile,sold_items_list,customer_sales_dict)
 #
+# processing the ar_sales file
+read_ar_sales(sales_infile,ar_sales_list)
+#
 # processing the ar_ovchs file
 process_ar_ovchs_file(ec_infile,customer_ar_dict,rep_totals_dict)
 #
@@ -512,8 +571,8 @@ process_s_wkcomm_file(com_infile,com_line_list,rep_totals_dict)
 #
 # creating sql upload statments
 sales_dict_list = make_sales_sql_dicts(sold_items_list)
-rep_dict_list  = make_rep_sql_dicts(rep_totals_dict)
+#rep_dict_list  = make_rep_sql_dicts(rep_totals_dict)
 sales_sql  = create_sql('sales_by_customer',sales_dict_list)
-print(sales_sql)
+#print(sales_sql)
 
 
