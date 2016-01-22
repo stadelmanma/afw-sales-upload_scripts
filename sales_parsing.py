@@ -63,12 +63,7 @@ class sales_line:
         #
         # processing input string
         col_names = ['rep_id','junk','avg_days_pay','total','current','bucket_1','bucket_2','bucket_3','bucket_4']
-        for i in range(len(col_starts)-1):
-            col = (col_names[i] if i < len(col_names) else 'col-'+str(i))
-            self.col_dict[col] = input_str[col_starts[i]:col_starts[i+1]].strip()
-        i += 1
-        col = (col_names[i] if i < len(col_names) else 'col-'+str(i))
-        self.col_dict[col] = input_str[col_starts[-1]:].strip()
+        self.col_dict = line_to_dict(input_str,col_names,col_starts)
         #
         # updating variables
         self.rep_id = self.col_dict['rep_id']
@@ -90,12 +85,7 @@ class ar_line:
         #
         # processing input string
         col_names = ['customer_id','name','desc','address','phone','rep_id','city','state','over','ar_ttl']
-        for i in range(len(col_starts)-1):
-            col = (col_names[i] if i < len(col_names) else 'col-'+str(i))
-            self.col_dict[col] = input_str[col_starts[i]:col_starts[i+1]].strip()
-        i += 1
-        col = (col_names[i] if i < len(col_names) else 'col-'+str(i))
-        self.col_dict[col] = input_str[col_starts[-1]:].strip()
+        self.col_dict = line_to_dict(input_str,col_names,col_starts)
         #
         # updating variables
         self.rep_id = self.col_dict['rep_id']
@@ -121,12 +111,7 @@ class com_line:
         #
         # processing input string
         col_names = ['spacer','rep_id','rep_name','sales','credits','cost','profit','margin','comm','perc']
-        for i in range(len(col_starts)-1):
-            col = (col_names[i] if i < len(col_names) else 'col-'+str(i))
-            self.col_dict[col] = input_str[col_starts[i]:col_starts[i+1]].strip()
-        i += 1
-        col = (col_names[i] if i < len(col_names) else 'col-'+str(i))
-        self.col_dict[col] = input_str[col_starts[-1]:].strip()
+        self.col_dict = line_to_dict(input_str,col_names,col_starts)
         #
         # updating variables
         self.rep_id = self.col_dict['rep_id']
@@ -161,66 +146,27 @@ class sales_rep:
     def __init__(self,rep_id):
         self.id = rep_id
         self.total_sales  = {}
-        self.total_cost  = {}
+        self.total_costs  = {}
         self.total_credits = {}
         self.total_profits = {}
-        self.total_ar = {}
         self.total_ar_sales = {}
+        self.total_ar = {}
     #
-    def incrementSales(self,date,amount):
+    def incrementDict(self,name,date,amount):
+        data_dict = self.__dict__[name]
         try:
-            self.total_sales[date] += amount
+            data_dict[date] += amount
         except KeyError:
             self.check_dates(date)
-            self.total_sales[date]  = amount
-    #
-    def incrementCredits(self,date,amount):
-        try:
-            self.total_credits[date] += amount
-        except KeyError:
-            self.check_dates(date)
-            self.total_credits[date]  = amount
-    #
-    def incrementCosts(self,date,amount):
-        try:
-            self.total_credits[date] += amount
-        except KeyError:
-            self.check_dates(date)
-            self.total_credits[date]  = amount
-    #
-    
-    def incrementProfits(self,date,amount):
-        try:
-            self.total_profits[date] += amount
-        except KeyError:
-            self.check_dates(date)
-            self.total_profits[date]  = amount
-    #
-    def incrementArSales(self,date,amount):
-        try:
-            self.total_ar_sales[date] += amount
-        except KeyError:
-            self.check_dates(date)
-            self.total_ar_sales[date]  = amount
-    #
-    def incrementAr(self,date,amount):
-        try:
-            self.total_ar[date] += amount
-        except KeyError:
-            self.check_dates(date)
-            self.total_ar[date]  = amount
+            data_dict[date]  = amount
     #
     def check_dates(self,date):
-        if (not self.total_sales.__contains__(date)):
-             self.total_sales[date] = 0.0
-        if (not self.total_cost.__contains__(date)):
-             self.total_cost[date] = 0.0
-        if (not self.total_ar_sales.__contains__(date)):
-             self.total_ar_sales[date] = 0.0
-        if (not self.total_ar.__contains__(date)):
-             self.total_ar[date] = 0.0
-        if (not self.total_credits.__contains__(date)):
-             self.total_credits[date] = 0.0
+        for name,dic in self.__dict__.items():
+            if (not isinstance(dic,dict)):
+                continue
+            #
+            if (not dic.__contains__(date)):
+                dic[date] = 0.0
 #
 #
 ################################################################################
@@ -231,7 +177,7 @@ class sales_rep:
 #
 #
 # this processes the ec upload file and populates the sold_items_list
-def read_ec_order_upload(infile,sold_items_list):
+def read_ec_order_upload(infile):
     # reading infile
     upload_file = open(infile,'r')
     content = upload_file.read()
@@ -241,170 +187,90 @@ def read_ec_order_upload(infile,sold_items_list):
     content_arr = re.split(r'\n',content)
     content_arr = list(filter(None,content_arr))
     #
+    sold_items_list = []
     for i in range(len(content_arr)):
         item = sold_item(content_arr[i])
         sold_items_list.append(item)
-#
-# this totals each customers sales
-def customer_totals(customer_sales_dict,sold_items_list):
-    for item in sold_items_list:
-        try:
-            cust = customer_sales_dict[item.customer_id]
-            cust.incrementSales(item.date,item.price,item.cost)
-        except KeyError:
-            cust = customer(item.customer_id)
-            cust.incrementSales(item.date,item.price,item.cost)
-            customer_sales_dict[item.customer_id] = cust
-#
-# this just acts as a driver function to handle all processing of EC upload file
-def process_ec_order_upload(ec_infile,sold_items_list,customer_sales_dict):
     #
-    # reading EC upload file
-    read_ec_order_upload(ec_infile,sold_items_list)
-    #
-    # totaling customer sales and cost
-    customer_totals(customer_sales_dict,sold_items_list)
+    return(sold_items_list)
 #
 #
 # ### ### ar_sales File Processing ### ### #
 #
 #
-# this function reads the ar_sales file
-def read_ar_sales(sales_infile,ar_sales_list):
-    # reading infile
-    sales_file = open(sales_infile,'r')
-    content = sales_file.read()
-    sales_file.close()
+# this just acts as a driver function to handle all processing of ar_sales file
+def process_ar_sales_file(infile,rep_totals_dict):
     #
-    # splitting lines 
-    content_arr = re.split(r'\n',content)
-    content_arr = list(filter(None,content_arr))
-    #
-    # getting date from first header
-    date = re.split('\s{2,}',content_arr[1])[2]
-    date = date.strip()
-    #
-    # filtering uneeded lines
+    # setting up inputs
     line_pat = re.compile(r'\s{1,4}[0-9]+\s+TOTAL\s+')
-    content_arr = list(filter(line_pat.match,content_arr))
-    #
-    # determining column starts
-    column_starts = get_column_starts(content_arr,4)
-    #
-    # creating sales_line objects
-    for line in content_arr:
+    def line_func(date,line,column_starts):
         sale = sales_line(line,column_starts)
         sale.date = date
-        ar_sales_list.append(sale)
+        return(sale)
+    #
+    entry_list = read_target_report(infile,line_pat,line_func)
+    #
+    # totaling customer ar into rep
+    for entry in entry_list:
+        try:
+            rep = rep_totals_dict[entry.rep_id]
+        except KeyError:
+            rep = sales_rep(entry.rep_id)
+            rep_totals_dict[entry.rep_id] = rep
+        rep.incrementDict('total_ar_sales',entry.date,entry.amount)
 #
 # ### ### ar_ovchs File Processing ### ### #
 #
 #
-# this function reads the ar_ovchs file 
-def read_ar_ovchs(ar_infile,customer_ar_dict):
-    # reading infile
-    ar_file = open(ar_infile,'r')
-    content = ar_file.read()
-    ar_file.close()
+# this just acts as a driver function to handle all processing of ar_ovchs file
+def process_ar_ovchs_file(infile,rep_totals_dict):
     #
-    # splitting lines 
-    content_arr = re.split(r'\n',content)
-    content_arr = list(filter(None,content_arr))
-    #
-    # getting date from first header
-    date = re.split('\s{2,}',content_arr[1])[2]
-    date = date.strip()
-    #
-    # filtering uneeded lines
+    # setting up inputs
     line_pat = re.compile(r'\s{1,6}[A-Z0-9]+\s')
-    content_arr = list(filter(line_pat.match,content_arr))
-    #
-    # determining column sizes (semi-brute force method)
-    column_starts = get_column_starts(content_arr,6)
-    #
-    # creating ar_line objects
-    for line in content_arr:
+    def line_func(date,line,column_starts):
         ar = ar_line(line,column_starts)
         ar.date = date
-        customer_ar_dict[ar.customer_id] = ar
-#
-# this function totals up AR by rep
-def rep_ar_totals(customer_ar_dict,rep_totals_dict):
+        return(ar)
     #
-    for cust in customer_ar_dict:
-        cust = customer_ar_dict[cust]
+    ar_list = read_target_report(infile,line_pat,line_func)
+    #
+    # totaling customer ar into rep
+    for cust in ar_list:
         try:
             rep = rep_totals_dict[cust.rep_id]
         except KeyError:
             rep = sales_rep(cust.rep_id)
             rep_totals_dict[cust.rep_id] = rep
-        rep.incrementAr(cust.date,cust.amount)
-#
-# this just acts as a driver function to handle all processing of ar_ovchs file
-def process_ar_ovchs_file(ec_infile,customer_ar_dict,rep_totals_dict):
-    #
-    # reading EC upload file
-    read_ar_ovchs(ar_infile,customer_ar_dict)
-    #
-    # totaling customer ar into rep
-    rep_ar_totals(customer_ar_dict,rep_totals_dict)
+        rep.incrementDict('total_ar',cust.date,cust.amount)
 #
 #
 # ### ### s_wkcomm File Processing ### ### #
 #
 #
-# this function reads the s_wkcomm file
-def read_s_wkcomm(com_infile,com_line_list):
-    # reading infile
-    com_file = open(com_infile,'r')
-    content = com_file.read()
-    com_file.close()
+# this just acts as a driver function to handle all processing of s_wkcomm file
+def process_s_wkcomm_file(infile,rep_totals_dict):
     #
-    # splitting by form feed characters (\x0c)
-    rep_page = re.split(r'\x0c',content)[1]
-    #
-    # splitting rep page by newlines
-    line_arr = rep_page.split('\n')
-    line_arr = list(filter(None,line_arr))
-    #
-    # getting date from header
-    date = re.split('\s{2,}',line_arr[1])[2]
-    date = date.strip()
-    # removing header and totals lines
-    del line_arr[0:6]
-    del line_arr[-1]
-    del line_arr[-1]
-    #
-    column_starts = get_column_starts(line_arr,24)
-    #
-    for line in line_arr:
+    # setting up inputs
+    line_pat = re.compile(r'^\s{5,}[*]{3}\s+\S+\s+')
+    def line_func(date,line,column_starts):
         cl = com_line(line,column_starts)
         cl.date = date
-        com_line_list.append(cl)
-#
-# this function adds the credits line to the rep object
-def rep_comm_totals(com_line_list,rep_totals_dict):
+        return(cl)
     #
-    for cl in com_line_list:
+    comm_list = read_target_report(infile,line_pat,line_func)
+    #
+    # totaling comm data into rep
+    for cl in comm_list:
         try:
             rep = rep_totals_dict[cl.rep_id]
         except KeyError:
             rep = sales_rep(cl.rep_id)
             rep_totals_dict[cl.rep_id] = rep
         #
-        rep.incrementSales(cl.date,cl.sales)
-        rep.incrementCredits(cl.date,cl.credits)
-        rep.incrementCosts(cl.date,cl.cost)
-        rep.incrementProfits(cl.date,cl.profit)
-#
-# this just acts as a driver function to handle all processing of s_wkcomm file
-def process_s_wkcomm_file(com_infile,com_line_list,rep_totals_dict):
-    #
-    # reading EC upload file
-    read_s_wkcomm(com_infile,com_line_list)
-    #
-    # totaling customer ar into rep
-    rep_comm_totals(com_line_list,rep_totals_dict)
+        rep.incrementDict('total_sales',cl.date,cl.sales)
+        rep.incrementDict('total_credits',cl.date,cl.credits)
+        rep.incrementDict('total_costs',cl.date,cl.cost)
+        rep.incrementDict('total_profits',cl.date,cl.profit)
 #
 #
 # ### ### general use functions ### ### #
@@ -423,11 +289,37 @@ def make_float(num_str):
     num = float(num_str)
     return(num)
 #
+# this function reads the fixed formatt target reports
+def read_target_report(infile,line_pat,line_func):
+    # reading infile
+    f = open(infile,'r')
+    content = f.read()
+    f.close()
+    #
+    # splitting lines 
+    content_arr = re.split(r'\n',content)
+    content_arr = list(filter(None,content_arr))
+    #
+    # getting date from first header
+    date = re.split('\s{2,}',content_arr[1])[2]
+    date = date.strip()
+    #
+    # filtering uneeded lines
+    content_arr = list(filter(line_pat.match,content_arr))
+    #
+    # determining column sizes 
+    column_starts = get_column_starts(content_arr)
+    #
+    # creating ar_line objects
+    output_list = [line_func(date,line,column_starts) for line in content_arr]
+    return(output_list)
+#
 # this function determines the column starts of fixed width reports
-def get_column_starts(content_arr,start_index):
+def get_column_starts(content_arr):
     # initializing variables
     column_starts = [0]
-    s = start_index
+    padding = re.match(r'\s*',content_arr[0])
+    s = padding.end()+1
     max_len = len(content_arr[0])
     while True:
         # inital testing 
@@ -448,6 +340,20 @@ def get_column_starts(content_arr,start_index):
             break
     #
     return(column_starts)
+#
+#
+def line_to_dict(input_str,col_names,col_starts):
+    #
+    line_dict = {}
+    for i in range(len(col_starts)-1):
+        col = (col_names[i] if i < len(col_names) else 'col-'+str(i))
+        line_dict[col] = input_str[col_starts[i]:col_starts[i+1]].strip()
+    #
+    i += 1
+    col = (col_names[i] if i < len(col_names) else 'col-'+str(i))
+    line_dict[col] = input_str[col_starts[-1]:].strip()
+    #
+    return(line_dict)
 #
 #
 # ### ### SQL generation ### ### #
@@ -485,23 +391,19 @@ def make_rep_sql_dicts(rep_totals_dict):
     # stepping through reps
     for key in rep_totals_dict.keys():
         rep = rep_totals_dict[key]
+        #
         # stepping through dates
-        keys = list(rep.ar_total.keys())
-        for date in keys:
-            try:
-                ar = rep.ar_total[date]
-            except KeyError:
-                ar = 0.0
-            try:
-                credits = rep.credit_total[date]
-            except KeyError:
-                credits = 0.0
+        for date in rep.total_sales.keys():
             #
             rep_dict = {
                 'rep_id'        : rep.id,
                 'date'          : date,
-                'total_ar'      : ar,
-                'total_credits' : credits,
+                'total_sales'   : rep.total_sales[date],
+                'total_credits' : rep.total_credits[date],
+                'total_cost'   : rep.total_costs[date],
+                'profit'        : rep.total_profits[date],
+                'total_ar_sales': rep.total_ar_sales[date],
+                'total_ar'      : rep.total_ar[date],
                 'entering_user' : 'python-upload',
                 'entry_status'  : 'submitted',
                 'admin_fix'     : '',
@@ -547,10 +449,8 @@ ec_infile = '../EC-Order-Upload.txt'
 sales_infile = '../ar_sales.txt'
 ar_infile = '../ar_ovchs.txt'
 com_infile = '../s_wkcomm.txt'
-sold_items_list = []
-com_line_list = []
+#
 ar_sales_list = []
-customer_sales_dict = {}
 customer_ar_dict = {}
 rep_totals_dict = {}
 ## need to make a script to locate files, the target outputs will have the same name but different numeric extension
@@ -558,21 +458,29 @@ rep_totals_dict = {}
 ## might be able to do this through a batch process + python 
 #
 # processing the EC upload file
-process_ec_order_upload(ec_infile,sold_items_list,customer_sales_dict)
+sold_items_list = read_ec_order_upload(ec_infile)
 #
 # processing the ar_sales file
-read_ar_sales(sales_infile,ar_sales_list)
+process_ar_sales_file(sales_infile,rep_totals_dict)
 #
 # processing the ar_ovchs file
-process_ar_ovchs_file(ec_infile,customer_ar_dict,rep_totals_dict)
+process_ar_ovchs_file(ar_infile,rep_totals_dict)
 #
 # processing the s_wkcomm file
-process_s_wkcomm_file(com_infile,com_line_list,rep_totals_dict)
+process_s_wkcomm_file(com_infile,rep_totals_dict)
 #
 # creating sql upload statments
 sales_dict_list = make_sales_sql_dicts(sold_items_list)
-#rep_dict_list  = make_rep_sql_dicts(rep_totals_dict)
+rep_dict_list  = make_rep_sql_dicts(rep_totals_dict)
 sales_sql  = create_sql('sales_by_customer',sales_dict_list)
-#print(sales_sql)
+rep_sql  = create_sql('sales_rep_data',rep_dict_list)
+#
+# writting SQL files
+f = open('sales_sql_upload.sql','w')
+f.write(sales_sql)
+f.write('\n')
+f.write(rep_sql)
+f.close()
+
 
 
