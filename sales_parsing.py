@@ -15,6 +15,7 @@
 #
 #
 # module imports
+import datetime
 import re
 import os
 #
@@ -44,7 +45,7 @@ class sold_item:
         # updating variables
         self.rep_id = self.col_dict['rep'].split(' ')[0]  #these will be replaced with useful col names
         self.customer_id = self.col_dict['customer_id']
-        self.date  = self.col_dict['stamp_date']
+        self.date  = format_date(self.col_dict['stamp_date'])
         self.price = make_float(self.col_dict['extended'])
         self.cost  = make_float(self.col_dict['sls_cost-wdeal']) * make_float(self.col_dict['quantity'])     
     #
@@ -289,6 +290,17 @@ def make_float(num_str):
     num = float(num_str)
     return(num)
 #
+# this function converts a date into proper SQL format
+def format_date(date_str):
+    # converting to date object
+    date = datetime.datetime.strptime(date_str,'%x')
+    # back converting to string
+    date_str = date.strftime('%Y-%m-%d')
+    #
+    return(date_str)
+    
+    
+#
 # this function reads the fixed formatt target reports
 def read_target_report(infile,line_pat,line_func):
     # reading infile
@@ -302,7 +314,7 @@ def read_target_report(infile,line_pat,line_func):
     #
     # getting date from first header
     date = re.split('\s{2,}',content_arr[1])[2]
-    date = date.strip()
+    date = format_date(date.strip())
     #
     # filtering uneeded lines
     content_arr = list(filter(line_pat.match,content_arr))
@@ -445,7 +457,7 @@ def create_sql(table,data):
 #
 #
 # initializations
-ec_infile = '../EC-Order-Upload.txt'
+ec_infile = '../EC-Order-Upload2015.txt'
 sales_infile = '../ar_sales.txt'
 ar_infile = '../ar_ovchs.txt'
 com_infile = '../s_wkcomm.txt'
@@ -473,13 +485,13 @@ process_s_wkcomm_file(com_infile,rep_totals_dict)
 sales_dict_list = make_sales_sql_dicts(sold_items_list)
 rep_dict_list  = make_rep_sql_dicts(rep_totals_dict)
 sales_sql  = create_sql('sales_data',sales_dict_list)
-rep_sql  = create_sql('sales_rep_data',rep_dict_list)
+#rep_sql  = create_sql('sales_rep_data',rep_dict_list)
 #
 # writting SQL files
 f = open('sales_sql_upload.sql','w')
 f.write(sales_sql)
 f.write('\n')
-f.write(rep_sql)
+#f.write(rep_sql)
 f.close()
     
 

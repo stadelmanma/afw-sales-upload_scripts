@@ -14,3 +14,5 @@ text.txt
 *.sql
 
 2015_sales_sql_upload.sql.zip
+
+*.zip
