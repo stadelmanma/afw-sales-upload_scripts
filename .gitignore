@@ -10,3 +10,5 @@ sales_parsing.py~
 *.txt
 
 text.txt
+
+*.sql
