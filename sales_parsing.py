@@ -226,7 +226,7 @@ def process_ar_sales_file(infile,rep_totals_dict):
 def process_ar_ovchs_file(infile,rep_totals_dict):
     #
     # setting up inputs
-    line_pat = re.compile(r'\s{1,6}[A-Z0-9]+\s')
+    line_pat = re.compile(r'^[A-Z0-9 ]{6}\s\S')
     def line_func(date,line,column_starts):
         ar = ar_line(line,column_starts)
         ar.date = date
@@ -418,7 +418,7 @@ def create_sql(table,data):
     #
     # initializaing variables
     sql = ''
-    stride = 50 # how many insert statements to pack together
+    stride = 200 # how many insert statements to pack together
     keyset = list(data[0].keys())
     for i in range(len(data)):
         dic = data[i]
@@ -472,7 +472,7 @@ process_s_wkcomm_file(com_infile,rep_totals_dict)
 # creating sql upload statments
 sales_dict_list = make_sales_sql_dicts(sold_items_list)
 rep_dict_list  = make_rep_sql_dicts(rep_totals_dict)
-sales_sql  = create_sql('sales_by_customer',sales_dict_list)
+sales_sql  = create_sql('sales_data',sales_dict_list)
 rep_sql  = create_sql('sales_rep_data',rep_dict_list)
 #
 # writting SQL files
@@ -481,6 +481,6 @@ f.write(sales_sql)
 f.write('\n')
 f.write(rep_sql)
 f.close()
-
+    
 
 
