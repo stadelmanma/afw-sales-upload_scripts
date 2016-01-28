@@ -238,6 +238,9 @@ def process_s_wkcomm_file(infile,rep_totals_dict):
     f.close()
     m = re.search(r'From\s+[0-9/]+\s+to\s+([0-9/]+)',content)
     date = format_date(m.group(1))
+    for rid in rep_totals_dict:
+        rep = rep_totals_dict[rid]
+        rep.date = date
     #
     # setting up inputs
     line_pat = re.compile(r'^\s{5,}[*]{3}\s+\S+\s+')
@@ -253,9 +256,9 @@ def process_s_wkcomm_file(infile,rep_totals_dict):
             rep = rep_totals_dict[cl.rep_id]
         except KeyError:
             rep = sales_rep(cl.rep_id)
+            rep.date = date
             rep_totals_dict[cl.rep_id] = rep
         #
-        rep.date = date
         rep.total_sales += cl.sales
         rep.total_credits += cl.credits
         rep.total_costs += cl.cost
@@ -447,7 +450,7 @@ ar_sales_list = []
 customer_ar_dict = {}
 rep_totals_dict = {}
 ## need to make a script to locate files, the target outputs will have the same name but different numeric extension
-## need to create a log to handle all errors and then have that emailed to justin ##
+## need to create a log to handle all errors and then have that emailed to justin
 ## might be able to do this through a batch process + python 
 #
 # processing the EC upload file
@@ -459,7 +462,7 @@ process_ar_sales_file(sales_infile,rep_totals_dict)
 # processing the ar_ovchs file
 process_ar_ovchs_file(ar_infile,rep_totals_dict)
 #
-# processing the s_wkcomm file
+# processing the s_wkcomm file, this needs to be last to ensure everyone gets a date value
 process_s_wkcomm_file(com_infile,rep_totals_dict)
 #
 # creating sql upload statments
