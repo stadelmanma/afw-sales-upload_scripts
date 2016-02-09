@@ -16,8 +16,9 @@
 #
 # module imports
 import datetime
-import re
 import os
+import re
+import subprocess
 #
 #
 ################################################################################
@@ -122,22 +123,6 @@ class com_line:
     #
     def getCol(self,key):
         return(self.col_dict[key])
-#
-# stores customer information and totals 
-class customer:
-    #
-    def __init__(self,customer_id):
-        self.id = customer_id
-        self.daily_sales = {}
-        self.daily_costs = {}
-    #
-    def incrementSales(self,date,price,cost):
-        try:
-            self.daily_sales[date] += price
-            self.daily_costs[date] += cost
-        except KeyError:
-            self.daily_sales[date]  = price
-            self.daily_costs[date]  = cost
 #
 # stores sales rep information and totals 
 class sales_rep:
@@ -267,6 +252,36 @@ def process_s_wkcomm_file(infile,rep_totals_dict):
 #
 # ### ### general use functions ### ### #
 #
+# this function searches the local directory for the most recent upload files
+def get_filenames(): 
+    #
+    list_dir = subprocess.Popen(['/bin/bash','-i','-c','dir'], stdout=subprocess.PIPE)
+    contents = list_dir.stdout.read()
+    contents = contents.decode()
+    #
+    # finding all matching files
+    ar_sales_files = re.findall('(ar_sales.*?)\n',contents)
+    ar_ovchs_files = re.findall('(ar_ovchs.*?)\n',contents)
+    s_wkcomm_files = re.findall('(s_wkcomm.*?)\n',contents)
+    #
+    file_dict = {
+        'ar_sales' : ar_sales_files,
+        'ar_ovchs' : ar_ovchs_files,
+        's_wkcomm' : s_wkcomm_files
+    }
+    #
+    # testing creation dates
+    for report in file_dict:
+        files = list(file_dict[report])
+        test_time = os.path.getctime(files[0])
+        file_dict[report] = files[0]
+        for filename in files:
+            ctime = os.path.getctime(filename)
+            if (ctime > test_time):
+                file_dict[report] = filename
+                test_time = ctime
+    #
+    return(file_dict)
 #
 # this function returns a float value from numeric values in reports
 def make_float(num_str):
@@ -358,14 +373,12 @@ def line_to_dict(input_str,col_names,col_starts):
 # ### ### SQL generation ### ### #
 #
 #
-# this function pulls the meaty bits from the objects stored in the customer and rep classes
+# this function pulls required information from the sold item class 
 def make_sales_sql_dicts(sold_items_list):
-    #
-    # defining columns
     #
     sales_dict_list = []
     #
-    # stepping through customers
+    # stepping through items
     for item in sold_items_list:
         item_dict = {
             'customer_id'   : item.customer_id,
@@ -439,19 +452,19 @@ def create_sql(table,data):
 ############################# Program Execution ################################
 ################################################################################
 #
-#
-# initializations
-ec_infile = '../EC-Order-Upload.txt'
-sales_infile = '../ar_sales.txt'
-ar_infile = '../ar_ovchs.txt'
-com_infile = '../s_wkcomm.txt'
-#
 ar_sales_list = []
 customer_ar_dict = {}
 rep_totals_dict = {}
-## need to make a script to locate files, the target outputs will have the same name but different numeric extension
 ## need to create a log to handle all errors and then have that emailed to justin
-## might be able to do this through a batch process + python 
+#
+# finding the reqired files
+file_dict = get_filenames()
+#
+# setting file names
+ec_infile = 'EC-Order-Upload.txt'
+sales_infile = file_dict['ar_sales']
+ar_infile = file_dict['ar_ovchs']
+com_infile = file_dict['s_wkcomm']
 #
 # processing the EC upload file
 sold_items_list = read_ec_order_upload(ec_infile)
@@ -462,16 +475,17 @@ process_ar_sales_file(sales_infile,rep_totals_dict)
 # processing the ar_ovchs file
 process_ar_ovchs_file(ar_infile,rep_totals_dict)
 #
-# processing the s_wkcomm file, this needs to be last to ensure everyone gets a date value
+# processing the s_wkcomm file
 process_s_wkcomm_file(com_infile,rep_totals_dict)
 #
 # creating sql upload statments
 sales_dict_list = make_sales_sql_dicts(sold_items_list)
 rep_dict_list  = make_rep_sql_dicts(rep_totals_dict)
 #
-#sales_sql  = create_sql('sales_data',sales_dict_list)
+sales_sql  = create_sql('sales_data',sales_dict_list)
 rep_sql  = create_sql('sales_rep_data',rep_dict_list)
 #
+# outputting the sql commands 
 f = open('sales-upload.sql','w')
 f.write(rep_sql)
 f.write('\n')
