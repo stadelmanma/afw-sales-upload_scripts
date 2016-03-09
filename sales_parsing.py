@@ -19,6 +19,7 @@ import datetime
 import os
 import re
 import subprocess
+import time
 #
 #
 ################################################################################
@@ -255,7 +256,8 @@ def process_s_wkcomm_file(infile,rep_totals_dict):
 # this function searches the local directory for the most recent upload files
 def get_filenames(): 
     #
-    list_dir = subprocess.Popen(['dir', '/b', '/o:gn'], stdout=subprocess.PIPE, shell=True)
+    #list_dir = subprocess.Popen(['dir', '/b', '/o:gn'], stdout=subprocess.PIPE, shell=True)
+    list_dir = subprocess.Popen('ls', stdout=subprocess.PIPE)
     contents = list_dir.stdout.read()
     contents = contents.decode()
     #
@@ -286,8 +288,19 @@ def get_filenames():
 #
 # this function reads a target report and pulls the date from the header
 def get_report_date(filename):
+    #
     with open(filename,'r') as f:
         content = f.read()
+    #
+    # splitting lines 
+    content_arr = re.split(r'\n',content)
+    content_arr = list(filter(None,content_arr))
+    #
+    date_line = content_arr[1]
+    date = date_line.search(r'(\d\d/\d\d/\d\d)',date_line).group(1)
+    date = time.strptime('12/19/15','%m/%d/%y') 
+    #
+    return time.mktime(date)
 #
 # this function returns a float value from numeric values in reports
 def make_float(num_str):
