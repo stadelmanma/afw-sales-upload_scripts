@@ -255,7 +255,8 @@ def process_s_wkcomm_file(infile,rep_totals_dict):
 # this function searches the local directory for the most recent upload files
 def get_filenames(): 
     #
-    list_dir = subprocess.Popen(['/bin/bash','-i','-c','dir'], stdout=subprocess.PIPE)
+    #list_dir = subprocess.Popen(['/bin/bash','-i','-c','dir'], stdout=subprocess.PIPE)
+    list_dir = subprocess.Popen('dir', stdout=subprocess.PIPE)
     contents = list_dir.stdout.read()
     contents = contents.decode()
     #
