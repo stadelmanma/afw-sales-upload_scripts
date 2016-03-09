@@ -257,7 +257,7 @@ def process_s_wkcomm_file(infile,rep_totals_dict):
 def get_filenames(): 
     #
     #list_dir = subprocess.Popen(['dir', '/b', '/o:gn'], stdout=subprocess.PIPE, shell=True)
-    list_dir = subprocess.Popen('ls', stdout=subprocess.PIPE)
+    list_dir = subprocess.Popen('dir', stdout=subprocess.PIPE)
     contents = list_dir.stdout.read()
     contents = contents.decode()
     #
