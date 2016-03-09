@@ -255,15 +255,14 @@ def process_s_wkcomm_file(infile,rep_totals_dict):
 # this function searches the local directory for the most recent upload files
 def get_filenames(): 
     #
-    #list_dir = subprocess.Popen(['/bin/bash','-i','-c','dir'], stdout=subprocess.PIPE)
-    list_dir = subprocess.Popen('dir', stdout=subprocess.PIPE)
+    list_dir = subprocess.Popen(['dir', '/b', '/o:gn'], stdout=subprocess.PIPE, shell=True)
     contents = list_dir.stdout.read()
     contents = contents.decode()
     #
     # finding all matching files
-    ar_sales_files = re.findall('(ar_sales.*?)\n',contents)
-    ar_ovchs_files = re.findall('(ar_ovchs.*?)\n',contents)
-    s_wkcomm_files = re.findall('(s_wkcomm.*?)\n',contents)
+    ar_sales_files = re.findall('(ar_sales\.[0-9]*)',contents)
+    ar_ovchs_files = re.findall('(ar_ovchs\.[0-9]*)',contents)
+    s_wkcomm_files = re.findall('(s_wkcomm\.[0-9]*)',contents)
     #
     file_dict = {
         'ar_sales' : ar_sales_files,
@@ -273,16 +272,22 @@ def get_filenames():
     #
     # testing creation dates
     for report in file_dict:
-        files = list(file_dict[report])
-        test_time = os.path.getctime(files[0])
+        files = list(filter(None,file_dict[report]))
+        files = [f.strip() for f in files]
+        test_date = get_report_date(files[0])
         file_dict[report] = files[0]
         for filename in files:
-            ctime = os.path.getctime(filename)
-            if (ctime > test_time):
+             date = get_report_date(filename)
+            if (date > test_date):
                 file_dict[report] = filename
-                test_time = ctime
+                test_date = date
     #
     return(file_dict)
+#
+# this function reads a target report and pulls the date from the header
+def get_report_date(filename):
+    with open(filename,'r') as f:
+        content = f.read()
 #
 # this function returns a float value from numeric values in reports
 def make_float(num_str):
