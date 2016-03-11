@@ -57,15 +57,26 @@ class sold_item:
 # this stores the line data from the ar_sales report
 class sales_line:
     #
-    def __init__(self,input_str,col_starts):
+    def __init__(self,line,):
         # initializations
         self.rep_id = 0
         self.amount = 0.00
         self.col_dict = {}
         #
         # processing input string
-        col_names = ['rep_id','junk','avg_days_pay','total','current','bucket_1','bucket_2','bucket_3','bucket_4']
-        self.col_dict = line_to_dict(input_str,col_names,col_starts)
+        self.parse_line(line)
+    #
+    def parse_line(self,line):
+        #
+        sales_pat  = [r'^\s*(?P<{}>[A-Z0-9]+)\s*[A-Z]+\s*[0-9?]+\s*']
+        sales_pat += [r'(?P<{}>[0-9,]*\.\d\d[-]?)\s*']*6
+        col_names  = ['rep_id','total','current','bucket_1','bucket_2','bucket_3','bucket_4']
+        #
+        # matching input line
+        sales_pat = [pat.format(name) for pat,name in zip(sales_pat,col_names)]
+        pat = re.compile(''.join(sales_pat),flags=re.I)
+        matches = pat.search(line)
+        self.col_dict = {name : matches.group(name) for name in col_names}
         #
         # updating variables
         self.rep_id = self.col_dict['rep_id']
@@ -75,32 +86,9 @@ class sales_line:
         return(self.col_dict[key])
 #
 # this stores the line data from the ar_ovchs report
-class ar_line:
-    #
-    def __init__(self,input_str,col_starts):
-        # initializations
-        self.rep_id = 0
-        self.customer_id = 0
-        self.amount = 0.00
-        self.col_dict = {}
-        #
-        # processing input string
-        col_names = ['customer_id','name','desc','address','phone','rep_id','city','state','over','ar_ttl']
-        self.col_dict = line_to_dict(input_str,col_names,col_starts)
-        #
-        # updating variables
-        self.rep_id = self.col_dict['rep_id']
-        self.customer_id = self.col_dict['customer_id']
-        # checking for appended negative sign
-        self.amount = make_float(self.col_dict['over'])
-    #
-    def getCol(self,key):
-        return(self.col_dict[key])
-#
-# this stores the line data from the ar_ovchs report
 class com_line:
     #
-    def __init__(self,input_str,col_starts):
+    def __init__(self,line,):
         # initializations
         self.rep_id = 0
         self.date = ''
@@ -111,12 +99,23 @@ class com_line:
         self.col_dict = {}
         #
         # processing input string
-        col_names = ['spacer','rep_id','rep_name','sales','credits','cost','profit','margin','comm','perc']
-        self.col_dict = line_to_dict(input_str,col_names,col_starts)
+        self.parse_line(line)
+    #
+    def parse_line(self,line):
+        #
+        # defining pattern array
+        comm_pat  = [r'(?P<{}>[0-9A-Z]+)\s*',r'(?P<{}>[0-9A-Z]+(?:\s[0-9A-Z]+)*)\s*']
+        comm_pat += [r'(?P<{}>\d*\.\d\d[-]?)\s*']*7
+        col_names = ['rep_id','rep_name','sales','credits','cost','profit','margin','comm','perc']
+        #
+        # matching input line
+        comm_pat = [pat.format(name) for pat,name in zip(comm_pat,col_names)]
+        pat = re.compile(''.join(comm_pat),flags=re.I)
+        matches = pat.search(line)
+        self.col_dict = {name : matches.group(name) for name in col_names}
         #
         # updating variables
         self.rep_id = self.col_dict['rep_id']
-        #
         self.sales = make_float(self.col_dict['sales'])
         self.credits = make_float(self.col_dict['credits'])
         self.cost = make_float(self.col_dict['cost'])
@@ -131,12 +130,12 @@ class sales_rep:
     def __init__(self,rep_id):
         self.id = rep_id
         self.date = ''
-        self.total_sales = 0
-        self.total_costs = 0
-        self.total_credits = 0
-        self.total_profits = 0
-        self.total_ar_sales = 0
-        self.total_ar = 0
+        self.total_sales = 0.0
+        self.total_costs = 0.0
+        self.total_credits = 0.0
+        self.total_profits = 0.0
+        self.total_ar_sales = 0.0
+        self.total_ar = 0.0
 #
 #
 ################################################################################
@@ -173,11 +172,11 @@ def process_ar_sales_file(infile,rep_totals_dict):
     #
     # setting up inputs
     line_pat = re.compile(r'\s{1,4}[0-9]+\s+TOTAL\s+')
-    def line_func(line,column_starts):
+    def line_func(line):
         sale = sales_line(line,column_starts)
         return(sale)
     #
-    entry_list = read_target_report(infile,line_pat,line_func)
+    entry_list = read_target_report(infile,line_pat,sales_line)
     #
     # totaling customer ar into rep
     for entry in entry_list:
@@ -194,22 +193,20 @@ def process_ar_sales_file(infile,rep_totals_dict):
 # this just acts as a driver function to handle all processing of ar_ovchs file
 def process_ar_ovchs_file(infile,rep_totals_dict):
     #
-    # setting up inputs
-    line_pat = re.compile(r'^[A-Z0-9 ]{6}\s\S')
-    def line_func(line,column_starts):
-        ar = ar_line(line,column_starts)
-        return(ar)
+    # reading file
+    pat = r'START OF SALESREP[ ]*?([A-Z0-9]+)\s.*?(?:.*?\n)*?.*?SALESREP TOTAL:.*?(\d*\.\d\d[-]?)'
+    with open(infile,'r') as f:
+        content = f.read()
+        totals = re.findall(pat,content)
     #
-    ar_list = read_target_report(infile,line_pat,line_func)
-    #
-    # totaling customer ar into rep
-    for cust in ar_list:
+    # putting total ar into rep objects
+    for ar in totals:
         try:
-            rep = rep_totals_dict[cust.rep_id]
+            rep = rep_totals_dict[ar[0].strip()]
         except KeyError:
-            rep = sales_rep(cust.rep_id)
-            rep_totals_dict[cust.rep_id] = rep
-        rep.total_ar += cust.amount
+            rep = sales_rep(ar[0].strip())
+            rep_totals_dict[ar[0].strip()] = rep
+        rep.total_ar = make_float(ar[1])
 #
 #
 # ### ### s_wkcomm File Processing ### ### #
@@ -230,11 +227,11 @@ def process_s_wkcomm_file(infile,rep_totals_dict):
     #
     # setting up inputs
     line_pat = re.compile(r'^\s{5,}[*]{3}\s+\S+\s+')
-    def line_func(line,column_starts):
-        cl = com_line(line,column_starts)
+    def line_func(line):
+        cl = com_line(line)
         return(cl)
     #
-    comm_list = read_target_report(infile,line_pat,line_func)
+    comm_list = read_target_report(infile,line_pat,com_line)
     #
     # totaling comm data into rep
     for cl in comm_list:
@@ -257,6 +254,7 @@ def process_s_wkcomm_file(infile,rep_totals_dict):
 def get_filenames(): 
     #
     list_dir = subprocess.Popen(['dir', '/b', '/o:gn'], stdout=subprocess.PIPE, shell=True)
+    #list_dir =  subprocess.Popen('ls', stdout=subprocess.PIPE, shell=True)
     contents = list_dir.stdout.read()
     contents = contents.decode()
     #
@@ -339,53 +337,9 @@ def read_target_report(infile,line_pat,line_func):
     # filtering uneeded lines
     content_arr = list(filter(line_pat.match,content_arr))
     #
-    # determining column sizes 
-    column_starts = get_column_starts(content_arr)
-    #
     # creating ar_line objects
-    output_list = [line_func(line,column_starts) for line in content_arr]
+    output_list = [line_func(line) for line in content_arr]
     return(output_list)
-#
-# this function determines the column starts of fixed width reports
-def get_column_starts(content_arr):
-    # initializing variables
-    column_starts = [0]
-    padding = re.match(r'\s*',content_arr[0])
-    s = padding.end()+1
-    max_len = len(content_arr[0])
-    while True:
-        # inital testing 
-        for line in content_arr:
-            max_len = (len(line) if (len(line) > max_len) else max_len)
-            if (not re.match('\s',line[s-1:s])):
-                s += 1
-                break
-        # advancing s until failure
-        if (line == content_arr[-1]):
-            s += 1
-            for line in content_arr:
-                if (not re.match('\s',line[s-1:s])):
-                    column_starts.append(s-1)
-                    break
-        #
-        if (s > max_len):
-            break
-    #
-    return(column_starts)
-#
-#
-def line_to_dict(input_str,col_names,col_starts):
-    #
-    line_dict = {}
-    for i in range(len(col_starts)-1):
-        col = (col_names[i] if i < len(col_names) else 'col-'+str(i))
-        line_dict[col] = input_str[col_starts[i]:col_starts[i+1]].strip()
-    #
-    i += 1
-    col = (col_names[i] if i < len(col_names) else 'col-'+str(i))
-    line_dict[col] = input_str[col_starts[-1]:].strip()
-    #
-    return(line_dict)
 #
 #
 # ### ### SQL generation ### ### #
