@@ -17,6 +17,7 @@
 # module imports
 import datetime
 import os
+import platform
 import re
 import subprocess
 import time
@@ -253,8 +254,11 @@ def process_s_wkcomm_file(infile,rep_totals_dict):
 # this function searches the local directory for the most recent upload files
 def get_filenames(): 
     #
-    list_dir = subprocess.Popen(['dir', '/b', '/o:gn'], stdout=subprocess.PIPE, shell=True)
-    #list_dir =  subprocess.Popen('ls', stdout=subprocess.PIPE, shell=True)
+    if (platform.system().lower() == 'windows'):
+        list_dir = subprocess.Popen(['dir', '/b', '/o:gn'], stdout=subprocess.PIPE, shell=True)
+    else:
+        list_dir =  subprocess.Popen('ls', stdout=subprocess.PIPE, shell=True)
+    #
     contents = list_dir.stdout.read()
     contents = contents.decode()
     #
