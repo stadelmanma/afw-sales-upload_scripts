@@ -398,7 +398,7 @@ def make_rep_sql_dicts(rep_totals_dict):
         rep_dict_list.append(rep_dict)  
     return(rep_dict_list)
 #
-# this creates a sql statement from a dctionary input using the keys as colunns
+# this creates a sql statement from a dictionary input using the keys as columns
 def create_sql(table,data):
     #
     # initializaing variables
